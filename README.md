@@ -1,61 +1,74 @@
 <div align="center">
 
-# VS Code Data Science IDE Projects
+# 🤖 Automation Profiles
 
-A collection of tools for enhancing your VS Code data science development environment.
+A collection of automation scripts to streamline development workflows and system management.
 
 [![Python](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
-[![VS Code](https://img.shields.io/badge/VS%20Code-Compatible-blue)](https://code.visualstudio.com/)
+[![Automation](https://img.shields.io/badge/Automation-Scripts-orange)](https://github.com/bhumukul-raj/automate_profiles)
 
 </div>
 
 ---
 
-## 📦 Projects
+## 🚀 Projects
 
-### 1. [Data Science Project Setup](./dsi-config/)
+### 1. [Data Science Environment Automation](./dsi-config/)
 
-Automated setup tool for data science projects that configures your development environment with best practices.
+Automated scripts for setting up and configuring data science development environments.
 
 **Key Features:**
-- 🐍 Automated Conda environment setup
-- 📦 Pre-configured data science packages
-- 🛠️ VSCode integration with recommended extensions
+- 🐍 Automated Conda environment configuration
+- 📦 Package installation and management
+- 🛠️ IDE setup automation
 - 🔧 Development tools configuration
 
-[➡️ Learn More](./dsi-config/README.md)
+[➡️ View Scripts](./dsi-config/README.md)
 
-### 2. [Ollama Setup & Management](./ollama/)
+### 2. [Ollama Management Scripts](./ollama/)
 
-A comprehensive toolkit for managing Ollama installations on Linux systems with automated setup and management capabilities.
+Automation tools for managing Ollama installations and services on Linux systems.
 
 **Key Features:**
-- 🚀 Multiple installation modes
-- 🎮 GPU support (NVIDIA/AMD)
-- 🔄 Service & resource management
-- 📊 System monitoring tools
+- 🚀 Installation automation
+- 🎮 Hardware configuration scripts
+- 🔄 Service management automation
+- 📊 Monitoring and maintenance scripts
 
-[➡️ Learn More](./ollama/README.md)
+[➡️ View Scripts](./ollama/README.md)
 
-## 🚀 Getting Started
+## 💻 Usage
 
-Each project has its own detailed documentation and setup instructions. Click the "Learn More" links above or navigate to the respective project directories for comprehensive guides.
+Each directory contains specific automation scripts with their own documentation. Navigate to the respective folders to find:
+- Detailed setup instructions
+- Script documentation
+- Configuration guides
+- Usage examples
+
+## 🛠️ Requirements
+
+- Python 3.7+
+- Required permissions for system modifications
+- Specific requirements listed in each project directory
 
 ## 🤝 Contributing
 
-We welcome contributions to either project! Please refer to the individual project READMEs for specific contribution guidelines.
+Contributions to improve these automation scripts are welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Submit a pull request
 
 ## 📝 License
 
-Both projects are licensed under the MIT License - see the individual LICENSE files for details.
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ---
 
 <div align="center">
 
-Made with ❤️ for the Data Science Community
+Made with ❤️ for making life easier through automation
 
-⭐ Star this repository if you find it helpful!
+⭐ Star this repository if you find these scripts helpful!
 
 </div>
