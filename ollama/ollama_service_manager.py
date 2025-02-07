@@ -31,6 +31,7 @@ import argparse
 from typing import List, Dict, Optional, Tuple
 import json
 import warnings
+import shutil  # Add this import for shutil.which
 
 # Import shared utilities
 from ollama_utils import setup_logging
@@ -60,50 +61,125 @@ class ResourceThresholds:
                 logger.warning(f"Error loading config: {e}")
 
 class SystemMonitor:
-    """System resource monitoring."""
+    """System resource monitoring with performance optimizations."""
     
     def __init__(self):
         self.thresholds = ResourceThresholds()
+        # Cache for temperature readings
+        self._temp_cache = {}
+        self._cache_timeout = 5  # seconds
+        # Track last check times
+        self._last_checks = {}
+        # Minimum intervals between checks (in seconds)
+        self._check_intervals = {
+            'cpu_temp': 5,
+            'gpu_temp': 5,
+            'battery': 30,
+            'resources': 5
+        }
+    
+    def _should_check(self, check_type: str) -> bool:
+        """Determine if enough time has passed for a new check."""
+        current_time = time.time()
+        last_check = self._last_checks.get(check_type, 0)
+        interval = self._check_intervals.get(check_type, 5)
+        
+        if current_time - last_check >= interval:
+            self._last_checks[check_type] = current_time
+            return True
+        return False
     
     def get_cpu_temperature(self) -> Optional[float]:
-        """Get CPU temperature in Celsius."""
+        """
+        Get CPU temperature in Celsius with caching.
+        
+        Returns:
+            Optional[float]: CPU temperature in Celsius, or None if unavailable
+        """
+        # Check cache first
+        cache_key = 'cpu_temp'
+        if not self._should_check(cache_key):
+            return self._temp_cache.get(cache_key)
+        
+        temp = None
+        # First try thermal zones
         try:
-            # Try reading from thermal zones
-            for thermal_zone in Path('/sys/class/thermal').glob('thermal_zone*'):
-                try:
-                    with open(thermal_zone / 'temp') as f:
-                        temp = int(f.read().strip()) / 1000.0  # Convert from millicelsius
-                        if temp > 0 and temp < 150:  # Sanity check
-                            return temp
-                except:
-                    continue
-            
-            # Try using sensors command
-            result = subprocess.run(['sensors'], capture_output=True, text=True)
-            if result.returncode == 0:
-                for line in result.stdout.splitlines():
-                    if 'Core 0' in line or 'CPU' in line:
-                        temp = float(line.split('+')[1].split('°')[0])
-                        return temp
-            return None
-        except:
-            return None
+            thermal_path = Path('/sys/class/thermal')
+            if thermal_path.exists():
+                for zone in thermal_path.glob('thermal_zone*'):
+                    try:
+                        temp_file = zone / 'temp'
+                        if temp_file.exists():
+                            # Try to read temperature type/label if available
+                            type_file = zone / 'type'
+                            if type_file.exists() and type_file.read_text().strip().lower() in ['x86_pkg_temp', 'cpu']:
+                                temp = int(temp_file.read_text().strip()) / 1000.0
+                                if 0 <= temp <= 150:  # Sanity check
+                                    break
+                    except (ValueError, OSError, IOError) as e:
+                        logger.debug(f"Error reading thermal zone {zone}: {e}")
+                        continue
+        except Exception as e:
+            logger.debug(f"Error accessing thermal zones: {e}")
+        
+        # Only try sensors command if we haven't found temp yet
+        if temp is None and shutil.which('sensors'):
+            try:
+                result = subprocess.run(
+                    ['sensors'],
+                    capture_output=True,
+                    text=True,
+                    timeout=2
+                )
+                if result.returncode == 0:
+                    for line in result.stdout.splitlines():
+                        if any(x in line for x in ['Core 0', 'CPU', 'Package id 0']):
+                            try:
+                                temp = float(line.split('+')[1].split('°')[0])
+                                if 0 <= temp <= 150:
+                                    break
+                            except (IndexError, ValueError):
+                                continue
+            except (subprocess.SubprocessError, subprocess.TimeoutExpired) as e:
+                logger.debug(f"Error running sensors command: {e}")
+        
+        # Update cache if we found a temperature
+        if temp is not None:
+            self._temp_cache[cache_key] = temp
+        
+        return temp
     
     def get_gpu_temperature(self) -> Optional[float]:
-        """Get GPU temperature in Celsius."""
+        """Get GPU temperature in Celsius with caching."""
+        cache_key = 'gpu_temp'
+        if not self._should_check(cache_key):
+            return self._temp_cache.get(cache_key)
+            
         try:
             result = subprocess.run(
                 ['nvidia-smi', '--query-gpu=temperature.gpu', '--format=csv,noheader'],
-                capture_output=True, text=True
+                capture_output=True, text=True,
+                timeout=2
             )
             if result.returncode == 0:
-                return float(result.stdout.strip())
-        except:
-            pass
+                temp = float(result.stdout.strip())
+                self._temp_cache[cache_key] = temp
+                return temp
+        except (subprocess.SubprocessError, subprocess.TimeoutExpired, ValueError) as e:
+            logger.debug(f"Error getting GPU temperature: {e}")
         return None
     
     def get_battery_status(self) -> Dict:
-        """Get battery status information."""
+        """Get battery status information with caching."""
+        cache_key = 'battery'
+        if not self._should_check(cache_key):
+            return self._temp_cache.get(cache_key, {
+                'present': False,
+                'percent': 100.0,
+                'charging': True,
+                'time_remaining': None
+            })
+        
         battery_info = {
             'present': False,
             'percent': 100.0,
@@ -120,8 +196,9 @@ class SystemMonitor:
                     'charging': battery.power_plugged,
                     'time_remaining': battery.secsleft if battery.secsleft != -1 else None
                 })
-        except:
-            pass
+                self._temp_cache[cache_key] = battery_info
+        except Exception as e:
+            logger.debug(f"Error getting battery status: {e}")
         
         return battery_info
 

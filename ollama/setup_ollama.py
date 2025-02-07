@@ -13,7 +13,12 @@ import logging
 import platform
 import requests
 import tqdm
-from typing import List
+import psutil
+import concurrent.futures
+import asyncio
+import aiohttp
+from typing import List, Dict, Optional, Set
+from concurrent.futures import ThreadPoolExecutor
 
 # Import shared utilities
 from ollama_utils import (
@@ -23,6 +28,70 @@ from ollama_utils import (
     check_ollama_running,
     stop_ollama_service
 )
+
+# Setup logging
+logger = setup_logging('ollama_setup')
+
+class SetupManager:
+    """Manages the setup process with parallel processing capabilities."""
+    
+    def __init__(self):
+        self.max_workers = min(32, (os.cpu_count() or 1) + 4)
+        self.executor = ThreadPoolExecutor(max_workers=self.max_workers)
+        self.download_semaphore = asyncio.Semaphore(5)  # Limit concurrent downloads
+        self.session = None
+    
+    async def __aenter__(self):
+        self.session = aiohttp.ClientSession()
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.session:
+            await self.session.close()
+        self.executor.shutdown(wait=True)
+    
+    async def download_file(self, url: str, dest_path: Path, desc: str = None) -> bool:
+        """Download a file with async IO and progress bar."""
+        async with self.download_semaphore:
+            try:
+                async with self.session.get(url) as response:
+                    if response.status != 200:
+                        logger.error(f"Failed to download {url}: {response.status}")
+                        return False
+                    
+                    total_size = int(response.headers.get('content-length', 0))
+                    with open(dest_path, 'wb') as f, tqdm.tqdm(
+                        desc=desc or "Downloading",
+                        total=total_size,
+                        unit='iB',
+                        unit_scale=True,
+                        unit_divisor=1024,
+                    ) as pbar:
+                        async for chunk in response.content.iter_chunked(8192):
+                            size = f.write(chunk)
+                            pbar.update(size)
+                return True
+            except Exception as e:
+                logger.error(f"Download error: {e}")
+                return False
+    
+    def run_parallel_task(self, func, items, desc: str = None):
+        """Run tasks in parallel with progress tracking."""
+        with tqdm.tqdm(total=len(items), desc=desc or "Processing") as pbar:
+            futures = []
+            results = []
+            
+            def done_callback(future):
+                results.append(future.result())
+                pbar.update(1)
+            
+            for item in items:
+                future = self.executor.submit(func, item)
+                future.add_done_callback(done_callback)
+                futures.append(future)
+            
+            concurrent.futures.wait(futures)
+            return results
 
 def is_debian_based():
     """Check if the system is Debian/Ubuntu based."""
@@ -418,61 +487,79 @@ def install_models(models: List[str], logger: logging.Logger) -> bool:
             return False
     return True
 
-def main():
-    logger.info("Starting Ollama setup...")
-    
-    # Get installation preferences
-    install_options = get_installation_preferences()
-    
-    # Check and install required packages
-    check_and_install_packages()
-    
-    # Import psutil after ensuring it's installed
-    import psutil
-    
-    # Check system requirements
-    if not check_disk_space():
-        logger.error("Disk space check failed")
-        sys.exit(1)
-    
-    # Check GPU support if enabled
-    if install_options.gpu_enabled:
-        has_gpu, gpu_info = check_gpu_support()
-        logger.info(f"GPU support: {gpu_info}")
-    
-    # Use custom path if specified
-    install_path = install_options.custom_path or get_installation_path()
-    
-    # Install Ollama
-    if install_ollama(install_path):
-        logger.info("Ollama installation completed successfully")
+async def async_setup_ollama(options):
+    """Asynchronous setup process."""
+    async with SetupManager() as setup:
+        # Parallel system checks
+        system_checks = [
+            setup.executor.submit(check_disk_space),
+            setup.executor.submit(check_gpu_support),
+            setup.executor.submit(check_and_install_packages)
+        ]
         
-        # Install selected models if not minimal installation
-        if not install_options.minimal and install_options.models:
-            if install_models(install_options.models, logger):
-                logger.info("Model installation completed successfully")
-            else:
-                logger.warning("Some models failed to install")
+        # Wait for all checks to complete
+        results = await asyncio.gather(*(
+            asyncio.wrap_future(future)
+            for future in system_checks
+        ))
         
-        # Start service if auto-start enabled
-        if install_options.auto_start:
-            logger.info("Starting Ollama service...")
-            subprocess.Popen(['ollama', 'serve'])
-            logger.info("\nSetup Complete! Ollama service started.")
-            logger.info("You can now use 'ollama run' to start using models.")
-            if install_options.models:
-                logger.info(f"Installed models: {', '.join(install_options.models)}")
-            logger.info("Example: ollama run llama2")
-    else:
-        logger.error("Failed to install Ollama")
-        sys.exit(1)
+        if not all(results):
+            logger.error("System checks failed")
+            return False
+        
+        # Download and install Ollama
+        install_path = options.custom_path or get_installation_path()
+        if not await install_ollama_async(setup, install_path):
+            return False
+        
+        # Install models in parallel if needed
+        if not options.minimal and options.models:
+            await install_models_async(setup, options.models)
+        
+        return True
 
-if __name__ == "__main__":
+async def install_models_async(setup: SetupManager, models: List[str]) -> bool:
+    """Install multiple models in parallel."""
+    async def install_model(model: str) -> bool:
+        try:
+            logger.info(f"Installing model: {model}")
+            process = await asyncio.create_subprocess_exec(
+                'ollama', 'pull', model,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode == 0:
+                logger.info(f"Successfully installed {model}")
+                return True
+            else:
+                logger.error(f"Failed to install {model}: {stderr.decode()}")
+                return False
+        except Exception as e:
+            logger.error(f"Error installing {model}: {e}")
+            return False
+    
+    # Install models concurrently with a limit
+    tasks = [install_model(model) for model in models]
+    results = await asyncio.gather(*tasks)
+    return all(results)
+
+def main():
+    """Main setup function with async support."""
     try:
-        main()
+        # Get installation preferences
+        install_options = get_installation_preferences()
+        
+        # Run async setup
+        asyncio.run(async_setup_ollama(install_options))
+        
     except KeyboardInterrupt:
         logger.info("Setup interrupted by user")
         sys.exit(1)
     except Exception as e:
         logger.error(f"Unexpected error: {e}", exc_info=True)
-        sys.exit(1) 
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main() 

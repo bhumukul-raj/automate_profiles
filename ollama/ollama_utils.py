@@ -66,28 +66,24 @@ def install_system_package(package_name: str) -> bool:
         print(f"Error installing {package_name}: {e}")
         return False
 
-def ensure_pip_installed() -> bool:
-    """
-    Ensure pip is installed in the system.
-    
-    This function checks for pip installation and installs it if missing.
-    For Debian-based systems, it uses apt. For others, it uses get-pip.py.
-    
-    Returns:
-        bool: True if pip is available (installed or already present)
-        
-    Raises:
-        SystemExit: If pip installation fails
-    """
+def ensure_pip_installed():
+    """Ensure pip is installed in the system."""
     try:
+        # Try to import pip
         import pip
+        print("pip is already installed")
         return True
     except ImportError:
         print("pip is not installed. Installing pip...")
         if is_debian_based():
-            return install_system_package('python3-pip')
+            print("Detected Debian-based system, using apt to install pip")
+            if not install_system_package('python3-pip'):
+                print("Failed to install pip using apt")
+                sys.exit(1)
+            return True
         else:
             try:
+                # For non-Debian systems, use get-pip.py
                 subprocess.run(['curl', 'https://bootstrap.pypa.io/get-pip.py', '-o', 'get-pip.py'], check=True)
                 subprocess.run([sys.executable, 'get-pip.py'], check=True)
                 os.remove('get-pip.py')
