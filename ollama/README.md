@@ -66,8 +66,8 @@
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/ollama-tools.git
-   cd ollama-tools
+   git clone https://github.com/bhumukul-raj/automate_profiles.git
+   cd ollama
    ```
 
 2. Install dependencies:

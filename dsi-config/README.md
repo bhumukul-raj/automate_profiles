@@ -19,7 +19,7 @@ A modern, automated setup tool for data science projects that configures your de
 
 1. **Clone the repository**
    ```bash
-   git clone <your-repo-url>
+   git clone https://github.com/bhumukul-raj/automate_profiles.git
    cd dsi-config
    ```
 
