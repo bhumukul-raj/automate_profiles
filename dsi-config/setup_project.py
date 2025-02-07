@@ -7,10 +7,16 @@ from typing import Optional, Dict, Any
 
 DEFAULT_PYTHON_VERSION = "3.11"
 
+# Get the directory where the script is located
+SCRIPT_DIR = Path(__file__).parent.absolute()
+# Get the project root directory (parent of script directory)
+PROJECT_ROOT = SCRIPT_DIR.parent.absolute()
+
 def check_requirements_file() -> bool:
     """Check if requirements.txt exists"""
-    if not os.path.exists('requirements.txt'):
-        print("Error: requirements.txt not found!")
+    requirements_path = SCRIPT_DIR / 'requirements.txt'
+    if not requirements_path.exists():
+        print(f"Error: requirements.txt not found at {requirements_path}!")
         return False
     return True
 
@@ -52,14 +58,15 @@ def install_requirements() -> bool:
             return False
             
         pip_path = os.path.join(conda_prefix, 'bin', 'pip')
-        subprocess.run([pip_path, 'install', '-r', 'requirements.txt'], check=True)
+        requirements_path = SCRIPT_DIR / 'requirements.txt'
+        subprocess.run([pip_path, 'install', '-r', str(requirements_path)], check=True)
         return True
     except subprocess.CalledProcessError as e:
         print(f"Error installing requirements: {e}")
         return False
 
 def install_vscode_extensions() -> None:
-    """Install VSCode extensions"""
+    """Install VSCode extensions locally for the project"""
     extensions = [
         "ms-python.python",
         "ms-toolsai.jupyter",
@@ -70,13 +77,23 @@ def install_vscode_extensions() -> None:
         "continue.continue"
     ]
     
-    print("Installing VSCode extensions...")
-    for extension in extensions:
-        try:
-            subprocess.run(['code', '--install-extension', extension, '--force'], check=True)
-            print(f"Installed {extension}")
-        except subprocess.CalledProcessError as e:
-            print(f"Error installing {extension}: {e}")
+    # Create .vscode directory in the project root
+    vscode_dir = PROJECT_ROOT / '.vscode'
+    vscode_dir.mkdir(exist_ok=True)
+    
+    # Create extensions.json file
+    extensions_config = {
+        "recommendations": extensions
+    }
+    
+    extensions_path = vscode_dir / 'extensions.json'
+    try:
+        with open(extensions_path, 'w') as f:
+            json.dump(extensions_config, f, indent=4)
+        print("VSCode extension recommendations configured for the project")
+        print("Note: When you open this project in VSCode, it will prompt you to install the recommended extensions")
+    except Exception as e:
+        print(f"Error configuring extension recommendations: {e}")
 
 def load_existing_settings(settings_path: str) -> Dict[str, Any]:
     """Load existing VSCode settings if they exist"""
@@ -89,9 +106,9 @@ def load_existing_settings(settings_path: str) -> Dict[str, Any]:
     return {}
 
 def setup_vscode_settings() -> None:
-    """Create/update VSCode settings"""
+    """Create/update VSCode settings for the project"""
     settings = {
-        "python.defaultInterpreterPath": "${env:CONDA_PREFIX}/bin/python",
+        "python.defaultInterpreterPath": "${workspaceFolder}/dsi-config/.conda/ds_env/bin/python",
         "python.linting.enabled": True,
         "python.formatting.provider": "black",
         "editor.formatOnSave": True,
@@ -104,23 +121,36 @@ def setup_vscode_settings() -> None:
         "terminal.integrated.inheritEnv": True,
         "python.analysis.autoImportCompletions": True,
         "python.analysis.completeFunctionParens": True,
-        # Added linting settings
-        "python.linting.pylintEnabled": true,
-        "python.linting.flake8Enabled": true,
-        "python.linting.mypyEnabled": true
+        "python.linting.pylintEnabled": True,
+        "python.linting.flake8Enabled": True,
+        "python.linting.mypyEnabled": True,
+        # Add workspace-specific settings
+        "python.envFile": "${workspaceFolder}/.env",
+        "python.analysis.extraPaths": ["${workspaceFolder}"],
+        # Configure local conda environment
+        "python.condaPath": "conda",
+        "python.terminal.activateEnvInCurrentTerminal": True,
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "terminal.integrated.profiles.linux": {
+            "bash": {
+                "path": "bash",
+                "icon": "terminal-bash"
+            }
+        }
     }
     
-    os.makedirs('.vscode', exist_ok=True)
-    settings_path = '.vscode/settings.json'
+    vscode_dir = PROJECT_ROOT / '.vscode'
+    vscode_dir.mkdir(exist_ok=True)
+    settings_path = vscode_dir / 'settings.json'
     
     try:
         # Merge with existing settings
-        existing_settings = load_existing_settings(settings_path)
+        existing_settings = load_existing_settings(str(settings_path))
         merged_settings = {**existing_settings, **settings}
                 
         with open(settings_path, 'w') as f:
             json.dump(merged_settings, f, indent=4)
-        print("VSCode settings created/updated")
+        print("VSCode project settings created/updated")
     except Exception as e:
         print(f"Error creating VSCode settings: {e}")
 
@@ -131,7 +161,7 @@ def main() -> None:
     This function:
     1. Creates a conda environment with the specified Python version
     2. Installs required packages from requirements.txt
-    3. Sets up VSCode with appropriate extensions and settings
+    3. Sets up project-specific VSCode settings and extension recommendations
     4. Configures development tools like black, pylint, and flake8
     """
     # Get environment name and Python version from command line or use defaults
@@ -150,17 +180,20 @@ def main() -> None:
         
         # Run the activation and pip install in a new shell
         if check_requirements_file():
-            install_cmd = f"{activate_cmd} && pip install -r requirements.txt"
+            requirements_path = SCRIPT_DIR / 'requirements.txt'
+            install_cmd = f"{activate_cmd} && pip install -r {requirements_path}"
             subprocess.run(['bash', '-c', install_cmd], check=True)
         
-        # Install VSCode extensions
+        # Setup project-specific VSCode configuration
         install_vscode_extensions()
-        
-        # Setup VSCode settings
         setup_vscode_settings()
         
         print("\nSetup completed successfully!")
-        print(f"Please restart VSCode and run 'conda activate {env_name}' to start working")
+        print("Project-specific VSCode configuration has been created.")
+        print(f"Please restart VSCode and:")
+        print(f"1. Run 'conda activate {env_name}' to activate the environment")
+        print("2. Install the recommended extensions when prompted by VSCode")
+        print("3. Ensure you open VSCode directly in this project directory")
     else:
         print("Setup failed!")
 

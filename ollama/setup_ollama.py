@@ -311,8 +311,8 @@ def get_installation_path():
     custom_path.mkdir(parents=True, exist_ok=True)
     return custom_path
 
-def install_ollama(install_path):
-    """Install Ollama in the specified location."""
+async def install_ollama_async(setup: SetupManager, install_path: Path) -> bool:
+    """Install Ollama asynchronously."""
     try:
         logger.info(f"Installing Ollama in: {install_path}")
         
@@ -410,14 +410,33 @@ def get_installation_preferences() -> InstallationMode:
     """
     options = InstallationMode()
     
+    # Get dynamic user information
+    home_dir = Path.home()
+    username = os.getenv('USER') or os.getenv('USERNAME') or 'user'
+    
     print("\nOllama Installation Options:")
     print("---------------------------")
     
     # Ask for installation type
-    print("\nInstallation Types:")
+    print("\nInstallation Types and Paths:")
     print("1. Full Installation (with default models)")
-    print("2. Minimal Installation (no models)")
-    print("3. Custom Installation")
+    print(f"   ├── Binary: /usr/local/bin/ollama")
+    print(f"   ├── Models: {home_dir}/.ollama/models")
+    print(f"   ├── Config: {home_dir}/.ollama/config")
+    print(f"   └── Service: /etc/systemd/system/ollama.service")
+    print("   * Requires ~15GB space for models")
+    
+    print("\n2. Minimal Installation (no models)")
+    print(f"   ├── Binary: /usr/local/bin/ollama")
+    print(f"   ├── Config: {home_dir}/.ollama/config")
+    print(f"   └── Service: /etc/systemd/system/ollama.service")
+    print("   * Requires ~500MB space")
+    
+    print("\n3. Custom Installation")
+    print(f"   ├── Choose your own installation path")
+    print(f"   ├── Select specific models to install")
+    print(f"   └── Configure GPU and service options")
+    print("   * Space required depends on selected models")
     
     while True:
         try:
@@ -432,12 +451,25 @@ def get_installation_preferences() -> InstallationMode:
         options.minimal = True
     elif choice == 3:
         # Custom path
-        custom_path = input("\nCustom installation path (Enter for default): ").strip()
-        if custom_path:
-            options.custom_path = Path(custom_path).expanduser().resolve()
+        print("\nCustom Installation Path:")
+        print(f"Default paths are:")
+        print(f"1. System path: /usr/local/bin/ollama")
+        print(f"2. Home directory: {home_dir}/ollama_custom")
+        print(f"3. Current directory: {os.getcwd()}/ollama_custom")
+        
+        custom_path = input("\nEnter custom installation path (or press Enter for home directory): ").strip()
+        if not custom_path:
+            custom_path = str(home_dir / 'ollama_custom')
+        
+        # Expand ~ and environment variables in the path
+        custom_path = os.path.expanduser(os.path.expandvars(custom_path))
+        options.custom_path = Path(custom_path).resolve()
+        
+        print(f"\nSelected path: {options.custom_path}")
+        print(f"Space required in {options.custom_path}: Depends on selected options")
         
         # GPU support
-        gpu_choice = input("Enable GPU support? (Y/n): ").lower()
+        gpu_choice = input("\nEnable GPU support? (Y/n): ").lower()
         options.gpu_enabled = gpu_choice != 'n'
         
         # Auto-start
@@ -445,20 +477,80 @@ def get_installation_preferences() -> InstallationMode:
         options.auto_start = autostart != 'n'
         
         # Model selection
-        print("\nAvailable Models:")
-        print("1. llama2 - Meta's Llama 2 model")
-        print("2. mistral - Mistral 7B model")
-        print("3. codellama - Code specialized Llama model")
-        print("4. None - No models")
+        print("\nAvailable Models (with approximate sizes):")
+        print("Popular Models:")
+        print("1.  llama2      - Meta's Llama 2 model                (~4GB)")
+        print("2.  mistral     - Mistral 7B model                    (~4GB)")
+        print("3.  codellama   - Code specialized Llama              (~4GB)")
+        print("4.  neural-chat - Intelligent chat model              (~4GB)")
+        print("5.  starling-lm - Starling advanced model            (~4GB)")
+        print("6.  dolphin-phi - Phi-2 based model                  (~2.7GB)")
+        print("7.  phi         - Microsoft's Phi-2 model            (~2.7GB)")
+        print("8.  tinyllama   - Lightweight Llama model            (~1.5GB)")
+        print("9.  gemma       - Google's Gemma model               (~4GB)")
+        print("10. stable-lm   - Stability AI model                 (~4GB)")
+        print("\nOther Options:")
+        print("11. Custom      - Enter your own model name")
+        print("12. None        - No models")
         
-        model_choice = input("\nSelect models (comma-separated numbers, Enter for none): ").strip()
+        model_choice = input("\nSelect models (comma-separated numbers, or type 'list' to see all available models): ").strip()
+        
+        if model_choice.lower() == 'list':
+            print("\nFetching complete list of available models...")
+            try:
+                result = subprocess.run(['ollama', 'list'], capture_output=True, text=True)
+                if result.returncode == 0:
+                    print("\nAll Available Models:")
+                    print(result.stdout)
+                else:
+                    print("Could not fetch model list. Continuing with known models.")
+            except Exception as e:
+                print(f"Error fetching model list: {e}")
+            model_choice = input("\nSelect models (comma-separated numbers): ").strip()
+        
         if model_choice:
             model_map = {
                 '1': 'llama2',
                 '2': 'mistral',
-                '3': 'codellama'
+                '3': 'codellama',
+                '4': 'neural-chat',
+                '5': 'starling-lm',
+                '6': 'dolphin-phi',
+                '7': 'phi',
+                '8': 'tinyllama',
+                '9': 'gemma',
+                '10': 'stable-lm'
             }
-            options.models = [model_map[m.strip()] for m in model_choice.split(',') if m.strip() in model_map]
+            
+            selected_models = []
+            custom_models = []
+            
+            for choice in model_choice.split(','):
+                choice = choice.strip()
+                if choice == '11':  # Custom model option
+                    while True:
+                        custom_model = input("Enter custom model name (or 'done' to finish): ").strip()
+                        if custom_model.lower() == 'done':
+                            break
+                        if custom_model:
+                            custom_models.append(custom_model)
+                elif choice in model_map:
+                    selected_models.append(model_map[choice])
+            
+            options.models = selected_models + custom_models
+            
+            if options.models:
+                print("\nSelected Models:")
+                for model in options.models:
+                    if model in model_map.values():
+                        print(f"- {model} (Standard model)")
+                    else:
+                        print(f"- {model} (Custom model)")
+                
+                # Calculate approximate size (4GB for standard models, estimate for custom)
+                total_size = sum(4 if model in model_map.values() else 4 for model in options.models)
+                print(f"\nEstimated total space required for selected models: ~{total_size}GB")
+                print("Note: Actual size may vary for custom models")
     
     return options
 
