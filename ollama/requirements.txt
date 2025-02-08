@@ -1,6 +1,0 @@
-psutil==5.9.5
-tqdm==4.65.0
-requests==2.31.0
-colorama>=0.4.6  # For better terminal output
-typing-extensions>=4.7.1  # For better type hints
-aiohttp>=3.8.0  # For async HTTP requests 

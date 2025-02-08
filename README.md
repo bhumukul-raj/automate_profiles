@@ -26,18 +26,6 @@ Automated scripts for setting up and configuring data science development enviro
 
 [➡️ View Scripts](./dsi-config/README.md)
 
-### 2. [Ollama Management Scripts](./ollama/)
-
-Automation tools for managing Ollama installations and services on Linux systems.
-
-**Key Features:**
-- 🚀 Installation automation
-- 🎮 Hardware configuration scripts
-- 🔄 Service management automation
-- 📊 Monitoring and maintenance scripts
-
-[➡️ View Scripts](./ollama/README.md)
-
 ## 💻 Usage
 
 Each directory contains specific automation scripts with their own documentation. Navigate to the respective folders to find:
