@@ -30,36 +30,158 @@ python3 setup_env.py
 # Creates conda environment 'env_ollama' with required packages
 ```
 
-### 2. Management Tools
+### 2. Service Management
 
 #### `ollama_service_manager.py`
-Comprehensive service management tool:
-```bash
-# Start Ollama service
-python3 ollama_service_manager.py start
+Comprehensive service management tool with advanced features:
 
-# Stop Ollama service
-python3 ollama_service_manager.py stop
+1. **Starting the Service**:
+   ```bash
+   # Start with default (normal) priority
+   python3 ollama_service_manager.py start
 
-# Check service status
-python3 ollama_service_manager.py status
+   # Start with specific priority
+   python3 ollama_service_manager.py start --priority high
+   python3 ollama_service_manager.py start --priority low
+   ```
 
-# Monitor resources
-python3 ollama_service_manager.py monitor
+2. **Stopping the Service**:
+   ```bash
+   python3 ollama_service_manager.py stop
+   ```
+
+3. **Checking Status**:
+   ```bash
+   # Regular status output
+   python3 ollama_service_manager.py status
+
+   # JSON format output (for scripting)
+   python3 ollama_service_manager.py status --json
+   ```
+
+4. **Resource Monitoring**:
+   ```bash
+   # Monitor with default interval (60 seconds)
+   python3 ollama_service_manager.py monitor
+
+   # Custom monitoring interval
+   python3 ollama_service_manager.py monitor --interval 30
+
+   # Monitor with log file
+   python3 ollama_service_manager.py monitor --log-file ~/ollama_monitor.log
+   ```
+
+#### Features:
+
+1. **Process Management**:
+   - Priority control (high/normal/low)
+   - Automatic process detection
+   - Graceful shutdown
+   - Service state persistence
+
+2. **Resource Monitoring**:
+   - CPU usage and temperature
+   - Memory utilization
+   - GPU status and memory
+   - Network bandwidth
+   - Disk usage
+   - Battery status (for laptops)
+
+3. **Automatic Optimization**:
+   - Battery-aware performance adjustment
+   - Dynamic CPU core allocation
+   - Memory usage optimization
+   - GPU resource management
+
+4. **Warning System**:
+   ```json
+   # Configure warning thresholds in ~/.ollama/resource_config.json
+   {
+       "cpu_percent_warning": 80.0,
+       "memory_percent_warning": 80.0,
+       "gpu_memory_percent_warning": 80.0,
+       "temperature_warning_celsius": 80.0,
+       "battery_minimum_percent": 20.0,
+       "network_warning_mbps": 100.0,
+       "disk_usage_warning": 90.0
+   }
+   ```
+
+5. **Status Information**:
+   - Process details (PID, CPU, Memory)
+   - Resource utilization
+   - GPU information (if available)
+   - System temperature
+   - Battery status
+   - Network usage
+   - Disk usage
+
+#### Common Use Cases:
+
+1. **Development Environment**:
+   ```bash
+   # Start with high priority
+   python3 ollama_service_manager.py start --priority high
+   ```
+
+2. **Server Deployment**:
+   ```bash
+   # Start service and monitor with logging
+   python3 ollama_service_manager.py start
+   python3 ollama_service_manager.py monitor --log-file /var/log/ollama_monitor.log
+   ```
+
+3. **Laptop Usage**:
+   ```bash
+   # Start with battery optimization
+   python3 ollama_service_manager.py start --priority low
+   python3 ollama_service_manager.py monitor --interval 30
+   ```
+
+4. **System Integration**:
+   ```bash
+   # Get status in JSON format for integration
+   python3 ollama_service_manager.py status --json
+   ```
+
+#### Automatic Actions:
+
+The service manager automatically:
+- Adjusts process priority based on system load
+- Optimizes for battery life on laptops
+- Manages GPU resources efficiently
+- Handles process cleanup on shutdown
+- Monitors and warns about resource usage
+- Stops service if resources are critical
+
+#### Monitoring Output Example:
 ```
+=== Ollama Status Report ===
+Status: Running
+Timestamp: 2024-01-20T14:30:45
 
-Features:
-- Service control (start/stop)
-- Resource monitoring (CPU, Memory, GPU)
-- Temperature monitoring
-- Battery management
-- Automatic alerts
+Process Information:
+- Number of processes: 1
+- CPU Usage: 25.5%
+- Memory Usage: 1024.5 MB
+- Network Upload: 0.5 Mbps
+- Network Download: 1.2 Mbps
+- Disk Usage: 45.2%
 
-#### `uninstall_ollama.py`
-Complete removal tool:
-```bash
-python3 uninstall_ollama.py
-# Removes all Ollama files and configurations
+GPU Information:
+- GPU: NVIDIA GeForce RTX 3080
+- Memory Used: 2048 MB
+- Memory Total: 10240 MB
+- Utilization: 30%
+- Temperature: 65°C
+- Power Usage: 120W
+
+System Temperature:
+- CPU: 55.5°C
+
+Battery Status:
+- Level: 75.5%
+- Charging: Yes
 ```
 
 ## 🔧 Installation Guide
@@ -112,127 +234,6 @@ python3 uninstall_ollama.py
           - Manual start
        ```
 
-## 📊 Usage Guide
-
-### Starting Ollama
-
-1. **If installed as a service**:
-   ```bash
-   # Check service status
-   systemctl status ollama
-   
-   # Start service if needed
-   sudo systemctl start ollama
-   ```
-
-2. **Manual start**:
-   ```bash
-   # Start in background
-   ~/.local/bin/ollama serve &
-   
-   # Or in a new terminal
-   ~/.local/bin/ollama serve
-   ```
-
-### Basic Commands
-
-```bash
-# List available models
-ollama list
-
-# Pull a model
-ollama pull llama2
-
-# Run a model
-ollama run llama2
-
-# Get model information
-ollama show llama2
-
-# Remove a model
-ollama rm llama2
-```
-
-### Popular Models
-
-1. **llama2**
-   ```bash
-   ollama pull llama2
-   ollama run llama2
-   # General purpose model, good for most tasks
-   ```
-
-2. **codellama**
-   ```bash
-   ollama pull codellama
-   ollama run codellama
-   # Specialized for code generation and analysis
-   ```
-
-3. **mistral**
-   ```bash
-   ollama pull mistral
-   ollama run mistral
-   # Fast and efficient model
-   ```
-
-4. **dolphin**
-   ```bash
-   ollama pull dolphin
-   ollama run dolphin
-   # Helpful assistant model
-   ```
-
-### GPU vs CPU Mode
-
-1. **CPU Mode**:
-   - Works on all systems
-   - Lower memory requirements
-   - Suitable for basic usage
-   - More predictable performance
-
-2. **GPU Mode** (NVIDIA/AMD):
-   - Faster processing
-   - Higher memory requirements
-   - Automatic resource management
-   - Features:
-     - GPU acceleration for supported operations
-     - CPU fallback when needed
-     - Dynamic resource allocation
-
-### Resource Management
-
-Monitor system resources:
-```bash
-python3 ollama_service_manager.py monitor --interval 30
-```
-
-Monitors:
-- CPU usage and temperature
-- Memory utilization
-- GPU status (if available)
-- Battery level
-- System temperature
-
-### Service Control
-```bash
-# Start service
-python3 ollama_service_manager.py start
-
-# Stop service
-python3 ollama_service_manager.py stop
-
-# Check status
-python3 ollama_service_manager.py status
-```
-
-## 🗑️ Uninstallation
-
-Remove Ollama completely:
-```bash
-sudo python3 uninstall_ollama.py
-```
-
 ## 📝 Configuration
 
 ### Resource Thresholds
@@ -243,51 +244,50 @@ Create `~/.ollama/resource_config.json`:
     "memory_percent_warning": 80.0,
     "gpu_memory_percent_warning": 80.0,
     "temperature_warning_celsius": 80.0,
-    "battery_minimum_percent": 20.0
+    "battery_minimum_percent": 20.0,
+    "network_warning_mbps": 100.0,
+    "disk_usage_warning": 90.0
 }
 ```
 
 ## 🔍 Troubleshooting
 
-1. **Installation Issues**:
-   ```bash
-   # Run with sudo
-   sudo python3 setup_ollama.py
-   ```
-
-2. **Permission Problems**:
-   ```bash
-   # Fix ownership
-   sudo chown -R $USER:$USER ~/.ollama
-   ```
-
-3. **Service Issues**:
+1. **Service Won't Start**:
    ```bash
    # Check service status
-   systemctl status ollama
-   # View logs
-   journalctl -u ollama
+   python3 ollama_service_manager.py status
+   # Check system logs
+   sudo journalctl -u ollama
    ```
 
-4. **GPU Problems**:
+2. **High Resource Usage**:
+   ```bash
+   # Monitor resources
+   python3 ollama_service_manager.py monitor
+   # Start with lower priority
+   python3 ollama_service_manager.py start --priority low
+   ```
+
+3. **GPU Issues**:
    ```bash
    # Check GPU status
-   nvidia-smi  # For NVIDIA
-   rocm-smi    # For AMD
+   python3 ollama_service_manager.py status
+   # Start without GPU
+   python3 ollama_service_manager.py start --priority normal
    ```
 
 ## 📚 Logging
 
-- Installation: `~/ollama_setup.log`
-- Uninstall: `~/ollama_uninstall.log`
-- Service: System journal
+- Service logs: `~/.ollama/service.log`
+- Monitor logs: Specified by `--log-file`
+- System journal: `journalctl -u ollama`
 
 ## 🔒 Security Notes
 
-- Binary installations may require sudo
-- Service files have appropriate permissions
-- Data directory owned by user
-- No sensitive data stored in plain text
+- Service manager requires appropriate permissions
+- Resource monitoring is non-intrusive
+- Process management respects system limits
+- Configuration files use secure permissions
 
 ## 📄 License
 
