@@ -412,12 +412,17 @@ def setup_vscode_settings() -> None:
         except Exception as e:
             print(f"Error creating VSCode settings at {settings_path}: {e}")
 
+def get_default_env_name() -> str:
+    """Get default environment name from project root directory name"""
+    return PROJECT_ROOT.name.lower().replace("-", "_").replace(" ", "_")
+
 def main() -> None:
     """Main function to set up the development environment."""
-    env_name = sys.argv[1] if len(sys.argv) > 1 else "ds_env"
+    default_env_name = get_default_env_name()
+    env_name = sys.argv[1] if len(sys.argv) > 1 else default_env_name
     python_version = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_PYTHON_VERSION
 
-    print(f"Starting project setup with Python {python_version}...")
+    print(f"Starting project setup with environment name '{env_name}' and Python {python_version}...")
     
     # Create .dsi directory structure
     setup_dsi_directories()
