@@ -5,13 +5,14 @@ import subprocess
 from pathlib import Path
 
 # Get the project root directory (where this script is located)
-PROJECT_ROOT = Path(__file__).parent.absolute()
+PROJECT_ROOT = Path(__file__).parent.parent.absolute()
 DSI_DIR = PROJECT_ROOT / '.dsi'
 DSI_ENV_DIR = DSI_DIR / 'environments'
-ADDITIONAL_REQUIREMENTS = PROJECT_ROOT / 'additional_requirements.txt'
+ADDITIONAL_REQUIREMENTS = Path(__file__).parent / 'additional_requirements.txt'
 
 def get_project_env_name() -> str:
     """Get the environment name based on project directory name"""
+    # Use PROJECT_ROOT.name directly since it's already at the correct level
     return PROJECT_ROOT.name.lower().replace("-", "_").replace(" ", "_")
 
 def check_env_exists(env_name: str) -> bool:
