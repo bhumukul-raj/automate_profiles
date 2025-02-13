@@ -243,15 +243,30 @@ def install_vscode_extensions() -> None:
     """Install VSCode extensions in portable mode"""
     # Core extensions (dependencies will be auto-installed)
     extensions = [
-        "ms-python.python",          # This will auto-install pylance
-        "ms-toolsai.jupyter",        # This will auto-install all jupyter extensions
-        "ms-toolsai.jupyter-keymap", # Jupyter keymap
-        "ms-toolsai.jupyter-renderers", # Jupyter notebook renderers
-        "ms-python.vscode-pylance",  # Python language server
-        "ms-toolsai.vscode-jupyter-cell-tags", # Jupyter cell tags
-        "ms-toolsai.vscode-jupyter-slideshow", # Jupyter slideshow
-        "ms-python.debugpy",         # Python debugger
-        "donjayamanne.python-extension-pack", # Comprehensive Python tools
+        "ms-python.python",          
+        "ms-toolsai.jupyter",        
+        "ms-toolsai.jupyter-keymap", 
+        "ms-toolsai.jupyter-renderers",
+        "ms-python.vscode-pylance",  
+        "ms-toolsai.vscode-jupyter-cell-tags",
+        "ms-toolsai.vscode-jupyter-slideshow",
+        "ms-python.debugpy",         
+        "donjayamanne.python-environment-manager",
+        
+        # AI-powered code suggestion extensions
+        "VisualStudioExptTeam.vscodeintellicode",  # AI-assisted IntelliSense
+        "VisualStudioExptTeam.intellicode-api-usage-examples",  # API usage examples
+        
+        # Enhanced Data Science support
+        "ms-toolsai.datawrangler",   # Data viewing and transformation
+        "ms-python.gather",          # Import organization for notebooks
+        "formulahendry.code-runner", # Run code snippets
+        "njpwerner.autodocstring",   # Python docstring generation
+        
+        # Additional utilities
+        "usernamehw.errorlens",      
+        "mechatroner.rainbow-csv",   
+        "aaron-bond.better-comments"
     ]
 
     # Download VSCode if not present
@@ -325,7 +340,11 @@ def install_vscode_extensions() -> None:
         "ms-toolsai.jupyter-renderers",
         "ms-toolsai.jupyter-keymap",
         "ms-toolsai.vscode-jupyter-cell-tags",
-        "ms-toolsai.vscode-jupyter-slideshow"
+        "ms-toolsai.vscode-jupyter-slideshow",
+        "donjayamanne.python-environment-manager",
+        "usernamehw.errorlens",
+        "mechatroner.rainbow-csv",
+        "aaron-bond.better-comments"
     ]
     
     extensions_config = {
@@ -394,7 +413,57 @@ def setup_vscode_settings() -> None:
         
         # Workspace settings
         "python.envFile": "${workspaceFolder}/.env",
-        "python.analysis.extraPaths": ["${workspaceFolder}"]
+        "python.analysis.extraPaths": ["${workspaceFolder}"],
+        
+        # Add file watching settings for auto-refresh
+        "files.autoSave": "afterDelay",
+        "files.autoSaveDelay": 1000,
+        "files.watcherExclude": {
+            "**/.git/objects/**": True,
+            "**/.git/subtree-cache/**": True,
+            "**/node_modules/**": True,
+            "**/.hg/store/**": True,
+            "**/env/**": True,
+            "**/.dsi/**": True
+        },
+        "files.watcherInclude": [
+            "**/*.py",
+            "**/*.ipynb",
+            "**/*.json",
+            "**/*.yaml",
+            "**/*.yml",
+            "**/*.md"
+        ],
+        # Enable file system watcher
+        "files.useExperimentalFileWatcher": True,
+        # Polling for file changes outside VSCode
+        "files.refactoring.autoSave": True,
+        "files.refactoring.autoSaveDelay": 1000,
+        
+        # IntelliCode settings
+        "vsintellicode.modify.editor.suggestSelection": "automaticallyOverrodeDefaultValue",
+        "vsintellicode.features.python.deepLearning": "enabled",
+        "python.languageServer": "Pylance",  # Required for best IntelliCode support
+        
+        # Pylance settings for better suggestions
+        "python.analysis.autoImportCompletions": True,
+        "python.analysis.completeFunctionParens": True,
+        "python.analysis.inlayHints.functionReturnTypes": True,
+        "python.analysis.inlayHints.variableTypes": True,
+        "python.analysis.typeCheckingMode": "basic",
+        
+        # Editor settings for better suggestions
+        "editor.suggestSelection": "first",
+        "editor.acceptSuggestionOnEnter": "smart",
+        "editor.snippetSuggestions": "top",
+        "editor.suggest.showKeywords": True,
+        "editor.suggest.showMethods": True,
+        "editor.suggest.showClasses": True,
+        "editor.suggest.showFunctions": True,
+        "editor.suggest.showVariables": True,
+        "editor.suggest.showConstants": True,
+        "editor.suggest.showProperties": True,
+        "editor.suggest.showModules": True,
     }
 
     # Create settings in both user and workspace locations
