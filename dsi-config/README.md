@@ -1,200 +1,129 @@
-# 🚀 Data Science Project Setup (DSI-Config)
+# Data Science Project Initializer
 
-A modern, automated setup tool for data science projects that configures your development environment with best practices and portable VSCode integration.
+A Python script that automates the setup of a complete data science development environment with portable VSCode and essential extensions.
 
-![Python Version](https://img.shields.io/badge/python-3.11-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Conda](https://img.shields.io/badge/conda-compatible-brightgreen.svg)
+## Features
 
-## ✨ Features
+- 📁 Creates standardized data science project structure
+- 💻 Sets up portable VSCode installation
+- 🐍 Configures Conda environment with Python 3.11
+- 🔧 Installs essential VSCode extensions for data science
+- ⚙️ Configures development tools (Black, isort, Pylint)
+- 📓 Sets up Jupyter notebook environment
 
-- 🐍 Automated Conda environment setup with Python 3.11
-- 📦 Pre-configured essential data science packages
-- 🛠️ Portable VSCode setup with recommended extensions
-- 🔧 Development tools (black, pylint, flake8, mypy)
-- 📊 Jupyter notebook configuration with integrated kernels
-- 🎯 Type checking and code quality tools
-- 🔒 Secure and isolated project environments
-- 📱 Portable configuration (.dsi directory structure)
+## Prerequisites
 
-## 🚀 Quick Start
+- Linux operating system (x86_64 or ARM64)
+- Conda package manager installed
+- Internet connection for downloading VSCode and extensions
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/bhumukul-raj/automate_profiles.git
-   cd dsi-config
-   ```
+## Usage
 
-2. **Run the setup script**
-   ```bash
-   python setup_project.py [env_name] [python_version]
-   ```
-   Arguments:
-   - `env_name`: Optional. Defaults to project directory name
-   - `python_version`: Optional. Default is "3.11"
-
-3. **Launch VSCode with the configured environment**
-   ```bash
-   python .dsi/launch_vscode.py
-   ```
-
-## 📂 Project Structure
-
-```
-.dsi/
-├── environments/        # Conda environments
-├── vscode-portable/     # Portable VSCode installation
-├── settings/           # VSCode settings and extensions
-│   ├── user-data/     # User-specific settings
-│   └── extensions/    # VSCode extensions
-└── launch_vscode.py   # VSCode launcher script
+1. Copy `ds-init-project.py` to your new project directory
+2. Run the script:
+```bash
+python ds-init-project.py
 ```
 
-## 📦 Included Packages
+3. Follow the recommended steps after setup:
+```bash
+# Launch VSCode
+./.dsi-config/launch-vscode.sh
 
-### Core Data Science
-- numpy >= 1.24.0
-- pandas >= 2.0.0
-- matplotlib >= 3.7.0
-- scikit-learn >= 1.3.0
-- seaborn >= 0.12.0
-- jupyter >= 1.0.0
+# Install extensions
+./.dsi-config/install-extensions.sh
 
-### Development Tools
-- black >= 23.0.0 (code formatting)
-- pylint >= 2.17.0 (linting)
-- flake8 >= 6.0.0 (style guide)
-- pytest >= 7.0.0 (testing)
-- mypy (type checking)
+# Activate conda environment
+conda activate ./.conda-env
 
-## 🛠️ VSCode Integration
+# Install required packages
+pip install -r .dsi-config/requirements.txt
+```
 
-The setup includes:
-- Portable VSCode installation
-- Automatic extension installation:
-  - Python extension pack
-  - Jupyter extension pack
-  - Pylance (Python language server)
-  - Debugger for Python
-  - Cell Tags and Slideshow features
-- Pre-configured settings:
-  - Format on save with Black
-  - Type checking with mypy
-  - Integrated terminal configuration
-  - Jupyter notebook settings
-  - Workspace-specific Python path
+## Project Structure Created
 
-## 🔧 Environment Configuration
+```
+project/
+├── data/
+│   ├── raw/        # Original, immutable data
+│   ├── processed/  # Cleaned and processed data
+│   └── external/   # Data from external sources
+├── notebooks/      # Jupyter notebooks
+├── src/           # Source code
+├── models/        # Trained models
+├── tests/         # Unit tests
+├── docs/          # Documentation
+└── .dsi-config/   # Configuration and portable VSCode
+```
 
-- Isolated conda environment per project
-- Automatic IPython kernel registration
-- Project-specific Python interpreter
-- Workspace-aware settings
-- Portable configuration that can be version controlled
+## Installed Extensions
 
-## 📋 Requirements
+### Python Development
+- Python language support (ms-python.python)
+- Pylance language server
+- Python debugger
+- Black formatter
+- isort import sorting
 
-- Conda package manager
-- Git
-- Linux operating system (x64)
-- Internet connection (for initial setup)
+### AI Assistance
+- IntelliCode
+- IntelliCode API usage examples
 
-## 🤝 Contributing
+### Jupyter Support
+- Jupyter notebooks
+- Jupyter keymap
+- Notebook renderers
+- Cell tags and slideshow features
 
-We love your input! We want to make contributing to DSI-Config as easy and transparent as possible, whether it's:
+### Data Science Tools
+- Data Wrangler
+- Python Environment Manager
+- YAML support
 
-- Reporting a bug
-- Discussing the current state of the code
-- Submitting a fix
-- Proposing new features
-- Becoming a maintainer
+### Development Helpers
+- Code Runner
+- Auto Docstring
+- Error Lens
+- Rainbow CSV
+- Better Comments
+- Spell Checker
+- Markdown support
 
-### Development Process
+## Configuration Files
 
-1. **Fork the Repository**
-   ```bash
-   # Clone your fork
-   git clone https://github.com/<your-username>/automate_profiles.git
-   cd automate_profiles
-   
-   # Add upstream remote
-   git remote add upstream https://github.com/bhumukul-raj/automate_profiles.git
-   ```
+The script creates several configuration files:
 
-2. **Create a Branch**
-   ```bash
-   # Update your main
-   git checkout main
-   git pull upstream main
-   
-   # Create your feature branch
-   git checkout -b feature/amazing-feature
-   ```
+- `.vscode/settings.json`: VSCode workspace settings
+- `.vscode/extensions.json`: Recommended extensions
+- `.vscode/launch.json`: Debug configurations
+- `.dsi-config/requirements.txt`: Python package requirements
+- `.dsi-config/environment.yml`: Conda environment specification
+- `.gitignore`: Data science specific ignore patterns
 
-3. **Make Changes**
-   - Write your code
-   - Follow the project's coding style
-   - Add or update tests as needed
-   - Update documentation as needed
+## Portable Setup
 
-4. **Test Your Changes**
-   ```bash
-   # Run tests
-   pytest
-   
-   # Check code style
-   black .
-   flake8 .
-   mypy .
-   ```
+The environment is designed to be portable:
+- VSCode is installed locally in `.dsi-config/vscode/`
+- Extensions are stored in `.dsi-config/vscode/data/extensions/`
+- Conda environment is created in `.conda-env/`
 
-5. **Commit Your Changes**
-   ```bash
-   git add .
-   git commit -m 'Add some amazing feature'
-   ```
+## Troubleshooting
 
-6. **Push and Create PR**
-   ```bash
-   git push origin feature/amazing-feature
-   ```
-   Then go to GitHub and create a Pull Request from your feature branch
+If you encounter issues:
 
-### Pull Request Guidelines
+1. Check internet connectivity for downloading VSCode and extensions
+2. Ensure Conda is properly installed and accessible
+3. Verify you have sufficient disk space
+4. Check file permissions in the project directory
 
-1. Update the README.md with details of changes if needed
-2. Update the requirements.txt if you add or update dependencies
-3. The PR should work for Python 3.11
-4. Include a description of changes and any related issue numbers
+## Contributing
 
-### Code Style
+Feel free to submit issues and enhancement requests!
 
-- Follow PEP 8 guidelines
-- Use type hints for all function parameters and return values
-- Keep functions focused and modular
-- Add docstrings for all functions and classes
-- Use meaningful variable and function names
+## Author
 
-### Bug Reports
+Bhumukul Raj (February 2024)
 
-When reporting a bug, please include:
+## License
 
-- A quick summary and/or background
-- Steps to reproduce
-- What you expected would happen
-- What actually happens
-- Notes (possibly including why you think this might be happening)
-
-### License
-
-By contributing, you agree that your contributions will be licensed under the MIT License.
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- The Python Data Science Community
-- VSCode Team for their amazing extensions
-- All contributors who help improve this project 
+This project is open source and available under the MIT License. 

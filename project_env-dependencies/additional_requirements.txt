@@ -1,8 +1,0 @@
-# Add your additional packages here
-# Example packages (uncomment or add your own):
-# tensorflow>=2.0.0
-# pytorch>=2.0.0
-# transformers>=4.0.0
-# opencv-python>=4.0.0
-# plotly>=5.0.0
-# streamlit>=1.0.0 
