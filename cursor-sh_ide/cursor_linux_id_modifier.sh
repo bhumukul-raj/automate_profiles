@@ -46,6 +46,28 @@ fi
 STORAGE_FILE="/home/$CURRENT_USER/.config/Cursor/User/globalStorage/storage.json"
 BACKUP_DIR="/home/$CURRENT_USER/.config/Cursor/User/globalStorage/backups"
 
+# Display security warning and get confirmation
+show_security_warning() {
+    echo
+    log_warn "⚠️ SECURITY AND STABILITY WARNING ⚠️"
+    echo "This script will make the following changes to your system:"
+    echo "1. Modify Cursor's configuration files"
+    echo "2. May request to modify system machine-id files"
+    echo "3. May attempt to close any running Cursor processes"
+    echo
+    echo "These changes may have the following impacts:"
+    echo "- Modifying machine-id could affect other applications that rely on this identifier"
+    echo "- Forcibly closing Cursor may result in data loss if you have unsaved changes"
+    echo "- Setting files as immutable may cause issues with future software updates"
+    echo
+    echo -n "Do you understand these risks and wish to continue? (yes/no): "
+    read -r confirmation
+    if [[ "$confirmation" != "yes" ]]; then
+        log_info "Operation cancelled by user"
+        exit 0
+    fi
+}
+
 # Check permissions
 check_permissions() {
     if [ "$EUID" -ne 0 ]; then
@@ -55,66 +77,92 @@ check_permissions() {
     fi
 }
 
-# Check and kill Cursor process
-check_and_kill_cursor() {
-    log_info "Checking Cursor process..."
+# Check and gently close Cursor process
+check_and_close_cursor() {
+    log_info "Checking for running Cursor processes..."
     
-    local attempt=1
-    local max_attempts=5
+    # Use more precise method to find Cursor process
+    CURSOR_PIDS=$(ps aux | grep -E "/[C]ursor|[C]ursor$" | awk '{print $2}' || true)
     
-    # Function: Get process details
-    get_process_details() {
-        local process_name="$1"
-        log_debug "Getting process details for $process_name:"
-        ps aux | grep -E "/[C]ursor|[C]ursor$" || true
-    }
+    if [ -z "$CURSOR_PIDS" ]; then
+        log_info "No running Cursor process found"
+        return 0
+    fi
     
-    while [ $attempt -le $max_attempts ]; do
-        # Use more precise method to find Cursor process
-        CURSOR_PIDS=$(ps aux | grep -E "/[C]ursor|[C]ursor$" | awk '{print $2}' || true)
+    log_warn "Found running Cursor processes"
+    ps aux | grep -E "/[C]ursor|[C]ursor$" || true
+    
+    echo
+    log_warn "It is recommended to close Cursor normally before proceeding"
+    echo -n "Attempt to close Cursor now? (yes/no/force): "
+    read -r close_choice
+    
+    if [[ "$close_choice" == "no" ]]; then
+        log_info "Please close Cursor manually and restart this script"
+        exit 0
+    fi
+    
+    if [[ "$close_choice" == "yes" ]]; then
+        local attempt=1
+        local max_attempts=3
         
-        if [ -z "$CURSOR_PIDS" ]; then
-            log_info "No running Cursor process found"
-            return 0
-        fi
-        
-        log_warn "Found running Cursor process"
-        get_process_details "Cursor"
-        
-        log_warn "Attempting to close Cursor process..."
-        
-        # Iterate through each PID and try to terminate
-        for pid in $CURSOR_PIDS; do
-            if [ $attempt -eq $max_attempts ]; then
-                log_warn "Attempting to force terminate process PID: ${pid}..."
-                kill -9 "${pid}" 2>/dev/null || true
-            else
+        while [ $attempt -le $max_attempts ]; do
+            log_info "Sending normal termination signal to Cursor (attempt $attempt/$max_attempts)..."
+            
+            # Send SIGTERM to each PID
+            for pid in $CURSOR_PIDS; do
                 kill "${pid}" 2>/dev/null || true
+            done
+            
+            # Wait a moment and check if processes are still running
+            sleep 3
+            CURSOR_PIDS=$(ps aux | grep -E "/[C]ursor|[C]ursor$" | awk '{print $2}' || true)
+            
+            if [ -z "$CURSOR_PIDS" ]; then
+                log_info "Cursor has been closed successfully"
+                return 0
             fi
+            
+            log_warn "Cursor is still running, waiting a bit longer..."
+            ((attempt++))
+            sleep 2
         done
         
-        sleep 2
+        # If we get here, normal termination failed
+        log_warn "Unable to close Cursor normally after $max_attempts attempts"
+        echo -n "Forcibly terminate Cursor? WARNING: This may cause data loss! (yes/no): "
+        read -r force_close
         
-        # Check if any Cursor process is still running
-        if ! ps aux | grep -E "/[C]ursor|[C]ursor$" > /dev/null; then
-            log_info "Cursor process successfully closed"
-            return 0
+        if [[ "$force_close" != "yes" ]]; then
+            log_info "Please close Cursor manually and restart this script"
+            exit 0
         fi
-        
-        log_warn "Waiting for process to close, attempt $attempt/$max_attempts..."
-        ((attempt++))
-        sleep 1
+    fi
+    
+    # Force option selected or normal close failed and force approved
+    log_warn "Attempting to forcibly terminate Cursor processes..."
+    for pid in $CURSOR_PIDS; do
+        log_warn "Force terminating process PID: ${pid}..."
+        kill -9 "${pid}" 2>/dev/null || true
     done
     
-    log_error "Unable to close Cursor process after $max_attempts attempts"
-    get_process_details "Cursor"
-    log_error "Please close the process manually and try again"
-    exit 1
+    sleep 2
+    CURSOR_PIDS=$(ps aux | grep -E "/[C]ursor|[C]ursor$" | awk '{print $2}' || true)
+    
+    if [ -z "$CURSOR_PIDS" ]; then
+        log_info "Cursor has been forcibly terminated"
+        return 0
+    else
+        log_error "Unable to terminate Cursor processes"
+        log_error "Please close Cursor manually and try again"
+        exit 1
+    fi
 }
 
 # Backup system ID
 backup_system_id() {
     log_info "Backing up system ID..."
+    mkdir -p "$BACKUP_DIR"
     local system_id_file="$BACKUP_DIR/system_id.backup_$(date +%Y%m%d_%H%M%S)"
     
     # Get and backup machine-id
@@ -142,8 +190,15 @@ backup_system_id() {
 backup_config() {
     # Check file permissions
     if [ -f "$STORAGE_FILE" ] && [ ! -w "$STORAGE_FILE" ]; then
-        log_error "Cannot write to configuration file, please check permissions"
-        exit 1
+        log_warn "Cannot write to configuration file, attempting to fix permissions..."
+        # Try to fix permissions
+        if command -v chattr &> /dev/null; then
+            chattr -i "$STORAGE_FILE" 2>/dev/null || true
+        fi
+        chmod 644 "$STORAGE_FILE" 2>/dev/null || {
+            log_error "Cannot modify file permissions, please check manually"
+            exit 1
+        }
     fi
     
     if [ ! -f "$STORAGE_FILE" ]; then
@@ -196,20 +251,32 @@ generate_new_config() {
         exit 1
     fi
     
-    # Modify system machine-id
-    if [ -f "/etc/machine-id" ]; then
-        log_info "Modifying system machine-id..."
-        local new_machine_id=$(uuidgen | tr -d '-')
-        
-        # Backup original machine-id
-        backup_system_id
-        
-        # Modify machine-id
-        echo "$new_machine_id" | sudo tee /etc/machine-id > /dev/null
-        if [ -f "/var/lib/dbus/machine-id" ]; then
-            sudo ln -sf /etc/machine-id /var/lib/dbus/machine-id
+    # Ask user if they want to modify system machine-id (instead of doing it automatically)
+    echo
+    log_warn "Do you want to modify the system machine-id files?"
+    echo "This can affect other applications that rely on this identifier."
+    echo "It's generally safer to modify only Cursor's configuration."
+    echo "0) No - Only modify Cursor's configuration (recommended, press Enter)"
+    echo "1) Yes - Modify system machine-id files"
+    read -r modify_machine_id
+    
+    if [ "$modify_machine_id" = "1" ]; then
+        if [ -f "/etc/machine-id" ]; then
+            log_info "Modifying system machine-id..."
+            local new_machine_id=$(uuidgen | tr -d '-')
+            
+            # Backup original machine-id
+            backup_system_id
+            
+            # Modify machine-id
+            echo "$new_machine_id" | sudo tee /etc/machine-id > /dev/null
+            if [ -f "/var/lib/dbus/machine-id" ]; then
+                sudo ln -sf /etc/machine-id /var/lib/dbus/machine-id
+            fi
+            log_info "System machine-id updated"
         fi
-        log_info "System machine-id updated"
+    else
+        log_info "Skipping system machine-id modification"
     fi
     
     # Convert auth0|user_ to byte array hexadecimal
@@ -230,25 +297,51 @@ generate_new_config() {
     device_id_escaped=$(escape_sed_replacement "$device_id")
     sqm_id_escaped=$(escape_sed_replacement "$sqm_id")
 
+    # Make a temporary copy to work with
+    local temp_file=$(mktemp)
+    cp "$STORAGE_FILE" "$temp_file"
+
     # Use enhanced regular expressions and escape
-    sed -i "s|\"telemetry\.machineId\": *\"[^\"]*\"|\"telemetry.machineId\": \"${machine_id_escaped}\"|" "$STORAGE_FILE"
-    sed -i "s|\"telemetry\.macMachineId\": *\"[^\"]*\"|\"telemetry.macMachineId\": \"${mac_machine_id_escaped}\"|" "$STORAGE_FILE"
-    sed -i "s|\"telemetry\.devDeviceId\": *\"[^\"]*\"|\"telemetry.devDeviceId\": \"${device_id_escaped}\"|" "$STORAGE_FILE"
-    sed -i "s|\"telemetry\.sqmId\": *\"[^\"]*\"|\"telemetry.sqmId\": \"${sqm_id_escaped}\"|" "$STORAGE_FILE"
+    sed -i "s|\"telemetry\.machineId\": *\"[^\"]*\"|\"telemetry.machineId\": \"${machine_id_escaped}\"|" "$temp_file"
+    sed -i "s|\"telemetry\.macMachineId\": *\"[^\"]*\"|\"telemetry.macMachineId\": \"${mac_machine_id_escaped}\"|" "$temp_file"
+    sed -i "s|\"telemetry\.devDeviceId\": *\"[^\"]*\"|\"telemetry.devDeviceId\": \"${device_id_escaped}\"|" "$temp_file"
+    sed -i "s|\"telemetry\.sqmId\": *\"[^\"]*\"|\"telemetry.sqmId\": \"${sqm_id_escaped}\"|" "$temp_file"
+
+    # Verify the temp file before moving it to the actual location
+    if command -v jq &> /dev/null; then
+        if ! jq empty "$temp_file" &> /dev/null; then
+            log_error "Temporary file format error, modifications aborted"
+            rm "$temp_file"
+            exit 1
+        fi
+    fi
+
+    # Move the temp file to the correct location
+    mv "$temp_file" "$STORAGE_FILE"
 
     # Set file permissions and owner
-    chmod 444 "$STORAGE_FILE"  # Change to read-only permissions
+    chmod 644 "$STORAGE_FILE"  # Set to read-write permissions for owner
     chown "$CURRENT_USER:$CURRENT_USER" "$STORAGE_FILE"
     
-    # Verify permissions
-    if [ -w "$STORAGE_FILE" ]; then
-        log_warn "Unable to set read-only permissions, trying other method..."
-        # On Linux, use chattr command to set immutable attribute
-        if command -v chattr &> /dev/null; then
-            chattr +i "$STORAGE_FILE" 2>/dev/null || log_warn "chattr setting failed"
+    # Ask user if they want to set read-only permissions
+    echo
+    log_warn "Do you want to set read-only permissions on the configuration file?"
+    echo "This may help prevent changes, but could cause issues with updates."
+    echo "0) No - Keep normal permissions (recommended, press Enter)"
+    echo "1) Yes - Set to read-only"
+    echo "2) Yes - Set to read-only and immutable (most restrictive)"
+    read -r perm_choice
+    
+    if [ "$perm_choice" = "1" ] || [ "$perm_choice" = "2" ]; then
+        chmod 444 "$STORAGE_FILE"  # Change to read-only permissions
+        log_info "Set read-only permissions on configuration file"
+        
+        # Set immutable if requested
+        if [ "$perm_choice" = "2" ] && command -v chattr &> /dev/null; then
+            chattr +i "$STORAGE_FILE" 2>/dev/null && \
+            log_info "Configuration file set as immutable" || \
+            log_warn "Failed to set immutable attribute"
         fi
-    else
-        log_info "Successfully set read-only permissions"
     fi
     
     echo
@@ -258,7 +351,7 @@ generate_new_config() {
     log_debug "devDeviceId: $device_id"
     log_debug "sqmId: $sqm_id"
 
-    # Add verification at the end of generate_new_config function
+    # Verify configuration after all modifications
     log_info "Verifying configuration file validity..."
     if ! command -v jq &> /dev/null; then
         log_warn "jq command not found, skipping JSON validation"
@@ -266,6 +359,8 @@ generate_new_config() {
         if ! jq empty "$STORAGE_FILE" &> /dev/null; then
             log_error "Configuration file format error, restoring backup..."
             cp "$(ls -t "$BACKUP_DIR"/storage.json.backup_* | head -1)" "$STORAGE_FILE"
+            chmod 644 "$STORAGE_FILE"
+            chown "$CURRENT_USER:$CURRENT_USER" "$STORAGE_FILE"
             exit 1
         fi
     fi
@@ -297,20 +392,12 @@ show_file_tree() {
     echo
 }
 
-# Show subscription information
-show_follow_info() {
-    echo
-    echo -e "${GREEN}================================${NC}"
-    echo -e "${YELLOW}  Follow WeChat Official Account [JianBingGuoZiJuanAI] to discuss more Cursor tips and AI knowledge ${NC}"
-    echo -e "${GREEN}================================${NC}"
-    echo
-}
-
 # Modify disable_auto_update function, add manual instructions for failure handling
 disable_auto_update() {
     echo
     log_warn "Do you want to disable Cursor auto-update feature?"
-    echo "0) No - Keep default settings (press Enter)"
+    echo "Note: Disabling updates may prevent you from receiving security and feature updates"
+    echo "0) No - Keep default settings (recommended, press Enter)"
     echo "1) Yes - Disable auto-update"
     read -r choice
     
@@ -330,15 +417,6 @@ disable_auto_update() {
             echo
             echo -e "${YELLOW}If the above command shows permission error, use sudo:${NC}"
             echo -e "${BLUE}sudo rm -rf \"$updater_path\" && sudo touch \"$updater_path\" && sudo chmod 444 \"$updater_path\"${NC}"
-            echo
-            echo -e "${YELLOW}For additional protection (recommended), execute:${NC}"
-            echo -e "${BLUE}sudo chattr +i \"$updater_path\"${NC}"
-            echo
-            echo -e "${YELLOW}Verification method:${NC}"
-            echo "1. Run command: ls -l \"$updater_path\""
-            echo "2. Confirm file permissions are r--r--r--"
-            echo "3. Run command: lsattr \"$updater_path\""
-            echo "4. Confirm 'i' attribute exists (if chattr command was executed)"
             echo
             log_warn "Please restart Cursor after completion"
         }
@@ -364,32 +442,41 @@ disable_auto_update() {
             return 1
         fi
         
-        # Try to set immutable attribute
-        if command -v chattr &> /dev/null; then
-            chattr +i "$updater_path" 2>/dev/null || {
-                log_warn "chattr setting failed"
-                show_manual_guide
-                return 1
-            }
+        # Ask about immutable attribute instead of setting automatically
+        echo
+        log_warn "Do you want to set the update blocker file as immutable?"
+        echo "This makes it harder to change but might cause issues with future operations."
+        echo "0) No - Keep normal read-only permissions (recommended, press Enter)"
+        echo "1) Yes - Also set immutable attribute"
+        read -r immutable_choice
+        
+        if [ "$immutable_choice" = "1" ] && command -v chattr &> /dev/null; then
+            chattr +i "$updater_path" 2>/dev/null && \
+            log_info "Update blocker file set as immutable" || \
+            log_warn "Failed to set immutable attribute, but file is still read-only"
         fi
         
         # Verify setting
-        if [ ! -f "$updater_path" ] || [ -w "$updater_path" ]; then
-            log_error "Verification failed: File permissions may not be effective"
+        if [ ! -f "$updater_path" ]; then
+            log_error "Verification failed: Update blocker file not found"
             show_manual_guide
             return 1
+        elif [ -w "$updater_path" ]; then
+            log_warn "Verification notice: File is writable, updates may still occur"
+            show_manual_guide
+            return 1
+        else
+            log_info "Successfully disabled auto-update"
         fi
-        
-        log_info "Successfully disabled auto-update"
     else
-        log_info "Keeping default settings, no changes"
+        log_info "Keeping default settings, no changes to update mechanism"
     fi
 }
 
 # Main function
 main() {
     clear
-    # Display Logo
+    # Display simplified logo without promotional content
     echo -e "
     ██████╗██╗   ██╗██████╗ ███████╗ ██████╗ ██████╗ 
    ██╔════╝██║   ██║██╔══██╗██╔════╝██╔═══██╗██╔══██╗
@@ -400,22 +487,19 @@ main() {
     "
     echo -e "${BLUE}================================${NC}"
     echo -e "${GREEN}   Cursor Device ID Modifier Tool   ${NC}"
-    echo -e "${YELLOW}  Follow WeChat Official Account [JianBingGuoZiJuanAI]     ${NC}"
-    echo -e "${YELLOW}  Join us to discuss more Cursor tips and AI knowledge (Script is free, follow WeChat Official Account to join group for more tips)  ${NC}"
     echo -e "${BLUE}================================${NC}"
     echo
     echo -e "${YELLOW}[Important Note]${NC} This tool supports Cursor v0.45.x"
-    echo -e "${YELLOW}[Important Note]${NC} This tool is free, if it helps you, please follow WeChat Official Account [JianBingGuoZiJuanAI]"
     echo
     
+    show_security_warning
     check_permissions
-    check_and_kill_cursor
+    check_and_close_cursor
     backup_config
     generate_new_config
     
     echo
     log_info "Operation completed!"
-    show_follow_info
     show_file_tree
     log_info "Please restart Cursor to apply new configuration"
     
