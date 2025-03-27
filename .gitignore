@@ -1,9 +1,6 @@
 # some extra Data
 .dsi
 .vscode
-
-
-
 # Python
 __pycache__/
 *.py[cod]
